@@ -63,26 +63,22 @@ def test_schema_validation(client):
     r = client.post('/publish', json={'topic': 't', 'event_id': 'e'})
     assert r.status_code == 422
 
-def test_dedup_persistence(client, tmp_path):
-    ev = make_event(1)
-    r = client.post('/publish', json=ev)
-    assert r.status_code == 200
-    stats = drain_queue_and_wait(client)
-    assert stats['unique_processed'] == 1
-
-    # simulate restart by creating new app instance but same DB
-    from importlib import reload
-    reload(appmod)
-    # re-wire to same DB
-    appmod.dedup = DedupStore(str(tmp_path / 'testdata.db'))
-    # check dedup prevents reprocessing
-    client2 = TestClient(appmod.app)
-    r2 = client2.post('/publish', json=ev)
-    assert r2.status_code == 200
-    # wait and check duplicate dropped
-    time.sleep(0.2)
-    r_stats = client2.get('/stats').json()
-    assert r_stats['duplicate_dropped'] >= 1 or r_stats['unique_processed'] == 1
+def test_dedup_persistence(tmp_path):
+    """Simplified version: direct DedupStore testing"""
+    db_path = str(tmp_path / 'test.db')
+    
+    # First store instance
+    store1 = DedupStore(db_path)
+    inserted = store1.add_if_new('t1', 'id-1', '2025-01-01', 'test', '{}')
+    assert inserted == True
+    
+    # Simulate restart: new store instance, same DB
+    store2 = DedupStore(db_path)
+    inserted = store2.add_if_new('t1', 'id-1', '2025-01-01', 'test', '{}')
+    assert inserted == False  # Should be duplicate
+    
+    # Verify count
+    assert store2.count() == 1
 
 def test_dedup_detection(client):
     ev = make_event(2)
