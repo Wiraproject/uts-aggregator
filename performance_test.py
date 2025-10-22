@@ -5,7 +5,6 @@ import argparse
 from datetime import datetime
 from typing import List, Dict
 
-# ANSI Colors
 GREEN = '\033[92m'
 YELLOW = '\033[93m'
 RED = '\033[91m'
@@ -16,7 +15,6 @@ RESET = '\033[0m'
 BASE_URL = "http://localhost:8080"
 
 def create_event(event_id: int, topic: str = "perf-test") -> Dict:
-    """Create a test event"""
     return {
         "topic": topic,
         "event_id": f"evt-{event_id}",
@@ -29,43 +27,21 @@ def create_event(event_id: int, topic: str = "perf-test") -> Dict:
     }
 
 def generate_events(total: int, dup_rate: float) -> List[Dict]:
-    """
-    Generate events with specified duplication rate
-    
-    Args:
-        total: Total number of events to generate
-        dup_rate: Duplication rate (0.0 to 1.0)
-    
-    Returns:
-        List of events with duplicates
-    """
     unique_count = int(total * (1 - dup_rate))
     events = []
     
     print(f"{BLUE}Generating {total} events ({unique_count} unique, {total - unique_count} duplicates)...{RESET}")
-    
-    # Create unique events
+
     for i in range(unique_count):
         events.append(create_event(i))
-    
-    # Add duplicates by reusing event_ids
+
     for i in range(total - unique_count):
         idx = i % unique_count
-        events.append(create_event(idx))  # Same event_id
+        events.append(create_event(idx)) 
     
     return events
 
 def send_batch(events: List[Dict], batch_size: int = 1000) -> Dict:
-    """
-    Send events in batches
-    
-    Args:
-        events: List of events to send
-        batch_size: Number of events per batch
-    
-    Returns:
-        Performance metrics
-    """
     total_events = len(events)
     batches = [events[i:i + batch_size] for i in range(0, total_events, batch_size)]
     
@@ -93,7 +69,7 @@ def send_batch(events: List[Dict], batch_size: int = 1000) -> Dict:
             print(f"{RED}Error sending batch {idx}: {e}{RESET}")
             return None
     
-    print()  # New line after progress
+    print()
     total_elapsed = time.time() - start_time
     
     return {
@@ -103,15 +79,6 @@ def send_batch(events: List[Dict], batch_size: int = 1000) -> Dict:
     }
 
 def wait_for_processing(timeout: int = 60) -> bool:
-    """
-    Wait for all events to be processed
-    
-    Args:
-        timeout: Maximum seconds to wait
-    
-    Returns:
-        True if all processed, False if timeout
-    """
     print(f"{BLUE}Waiting for processing to complete (timeout: {timeout}s)...{RESET}")
     
     start_time = time.time()
@@ -125,13 +92,11 @@ def wait_for_processing(timeout: int = 60) -> bool:
             received = stats.get('received', 0)
             processed = stats.get('unique_processed', 0)
             dropped = stats.get('duplicate_dropped', 0)
-            
-            # Check if all received events are processed
+
             if received == processed + dropped:
                 print(f"{GREEN}✓ All events processed!{RESET}")
                 return True
-            
-            # Show progress
+
             if stats != last_stats:
                 print(f"  Progress: received={received}, processed={processed}, dropped={dropped}", end='\r')
                 last_stats = stats
@@ -146,7 +111,6 @@ def wait_for_processing(timeout: int = 60) -> bool:
     return False
 
 def get_final_stats() -> Dict:
-    """Get final statistics from server"""
     try:
         response = requests.get(f"{BASE_URL}/stats", timeout=5)
         return response.json()
@@ -155,27 +119,23 @@ def get_final_stats() -> Dict:
         return None
 
 def print_results(send_metrics: Dict, stats: Dict, expected_unique: int, expected_dup: int):
-    """Print formatted test results"""
-    
+
     print(f"\n{BOLD}{'='*70}{RESET}")
     print(f"{BOLD}{BLUE}PERFORMANCE TEST RESULTS{RESET}")
     print(f"{BOLD}{'='*70}{RESET}\n")
-    
-    # Sending metrics
+
     print(f"{BOLD}1. Sending Performance:{RESET}")
     print(f"   Total sent:        {send_metrics['sent_count']} events")
     print(f"   Total time:        {send_metrics['total_time']:.2f} seconds")
     print(f"   Throughput:        {send_metrics['throughput']:.2f} events/sec")
-    
-    # Processing metrics
+
     print(f"\n{BOLD}2. Processing Results:{RESET}")
     print(f"   Received:          {stats['received']}")
     print(f"   Unique processed:  {stats['unique_processed']}")
     print(f"   Duplicates dropped: {stats['duplicate_dropped']}")
     print(f"   Topics:            {', '.join(stats.get('topics', []))}")
     print(f"   Uptime:            {stats.get('uptime_seconds', 0)} seconds")
-    
-    # Validation
+
     print(f"\n{BOLD}3. Validation:{RESET}")
     
     received_ok = stats['received'] == send_metrics['sent_count']
@@ -186,8 +146,7 @@ def print_results(send_metrics: Dict, stats: Dict, expected_unique: int, expecte
     
     dup_ok = stats['duplicate_dropped'] == expected_dup
     print(f"   {'✓' if dup_ok else '✗'} Duplicates dropped: {stats['duplicate_dropped']} (expected: {expected_dup})")
-    
-    # Pass/Fail
+
     all_pass = received_ok and unique_ok and dup_ok
     
     print(f"\n{BOLD}4. Final Verdict:{RESET}")
@@ -232,37 +191,30 @@ def main():
     print(f"  Duplication rate:  {args.dup_rate * 100:.0f}%")
     print(f"  Batch size:        {args.batch_size}")
     print(f"  Server URL:        {BASE_URL}\n")
-    
-    # Check server
+
     if not check_server_ready():
         return 1
-    
-    # Calculate expected results
+
     expected_unique = int(args.events * (1 - args.dup_rate))
     expected_dup = args.events - expected_unique
     
     print(f"Expected results:")
     print(f"  Unique:      {expected_unique}")
     print(f"  Duplicates:  {expected_dup}\n")
-    
-    # Generate events
+
     events = generate_events(args.events, args.dup_rate)
-    
-    # Send events
+
     send_metrics = send_batch(events, args.batch_size)
     if not send_metrics:
         return 1
-    
-    # Wait for processing
+
     if not wait_for_processing(timeout=60):
         return 1
-    
-    # Get final stats
+
     stats = get_final_stats()
     if not stats:
         return 1
-    
-    # Print results
+
     print_results(send_metrics, stats, expected_unique, expected_dup)
     
     return 0

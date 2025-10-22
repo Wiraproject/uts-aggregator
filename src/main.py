@@ -25,7 +25,6 @@ app = FastAPI()
 
 @app.on_event('startup')
 async def startup():
-    # start consumer task
     app.state.consumer_task = asyncio.create_task(consumer.run())
     app.state.start_time = stats.start_time
 
@@ -41,33 +40,48 @@ async def shutdown():
 
 @app.post('/publish')
 async def publish(events: Union[Event, List[Event]]):
-    """
-    Publish events with early duplicate detection.
-    Checks database before enqueueing to prevent duplicate processing.
-    """
     evs = events if isinstance(events, list) else [events]
     enqueued = 0
     duplicates_rejected = 0
     
     for ev in evs:
-        # Increment received counter
-        stats.received += 1
-        
-        # Early duplicate check - prevent duplicate from entering queue
-        topic = ev.topic
-        event_id = ev.event_id
-        
-        # Check if already exists in database
-        if dedup.exists(topic, event_id):
-            # Duplicate detected at ingestion layer
-            stats.duplicate_dropped += 1
-            duplicates_rejected += 1
-            logger.info(f'Duplicate rejected at ingestion: topic={topic} event_id={event_id}')
+        try:
+            stats.received += 1
+
+            topic = ev.topic
+            event_id = ev.event_id
+
+            if isinstance(ev.timestamp, str):
+                timestamp = ev.timestamp
+            elif hasattr(ev.timestamp, 'isoformat'):
+                timestamp = ev.timestamp.isoformat()
+            else:
+                timestamp = str(ev.timestamp)
+            
+            source = ev.source
+
+            try:
+                payload_json = json.dumps(ev.payload, separators=(',', ':'))
+            except (TypeError, ValueError) as e:
+                logger.error(f'Failed to serialize payload for event {event_id}: {e}')
+                stats.duplicate_dropped += 1 
+                continue
+
+            inserted = dedup.add_if_new(topic, event_id, timestamp, source, payload_json)
+            
+            if not inserted:
+                stats.duplicate_dropped += 1
+                duplicates_rejected += 1
+                logger.info(f'Duplicate rejected at ingestion: topic={topic} event_id={event_id}')
+                continue
+
+            await queue.put(ev.dict())
+            enqueued += 1
+            
+        except Exception as e:
+            logger.error(f'Error processing event {ev.event_id if hasattr(ev, "event_id") else "unknown"}: {e}')
+            stats.duplicate_dropped += 1 
             continue
-        
-        # New event - enqueue for processing
-        await queue.put(ev.dict())
-        enqueued += 1
     
     return JSONResponse({
         'enqueued': enqueued,

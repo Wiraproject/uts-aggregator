@@ -27,18 +27,9 @@ class Consumer:
     async def _handle_event(self, event: dict):
         topic = event['topic']
         event_id = event['event_id']
-        timestamp = event['timestamp']
-        source = event['source']
-        payload = event.get('payload', {})
-        payload_json = json.dumps(payload, separators=(',', ':'))
-
-        inserted = self.dedup.add_if_new(topic, event_id, timestamp, source, payload_json)
-        if not inserted:
-            logger.info('Duplicate detected: topic=%s event_id=%s', topic, event_id)
-            self.stats.duplicate_dropped += 1
-            return
-        # simulate event processing (fast)
+        
         logger.debug('Processing event topic=%s event_id=%s', topic, event_id)
+
         self.stats.unique_processed += 1
 
     def stop(self):
