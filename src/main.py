@@ -41,15 +41,38 @@ async def shutdown():
 
 @app.post('/publish')
 async def publish(events: Union[Event, List[Event]]):
-    # accept single or list (FastAPI will coerce single into model)
+    """
+    Publish events with early duplicate detection.
+    Checks database before enqueueing to prevent duplicate processing.
+    """
     evs = events if isinstance(events, list) else [events]
     enqueued = 0
+    duplicates_rejected = 0
+    
     for ev in evs:
-        # validation already done by Pydantic
+        # Increment received counter
         stats.received += 1
+        
+        # Early duplicate check - prevent duplicate from entering queue
+        topic = ev.topic
+        event_id = ev.event_id
+        
+        # Check if already exists in database
+        if dedup.exists(topic, event_id):
+            # Duplicate detected at ingestion layer
+            stats.duplicate_dropped += 1
+            duplicates_rejected += 1
+            logger.info(f'Duplicate rejected at ingestion: topic={topic} event_id={event_id}')
+            continue
+        
+        # New event - enqueue for processing
         await queue.put(ev.dict())
         enqueued += 1
-    return JSONResponse({'enqueued': enqueued})
+    
+    return JSONResponse({
+        'enqueued': enqueued,
+        'duplicates_rejected': duplicates_rejected
+    })
 
 @app.get('/events')
 async def get_events(topic: Optional[str] = Query(None)):

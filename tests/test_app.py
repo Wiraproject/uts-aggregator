@@ -90,6 +90,27 @@ def test_dedup_detection(client):
     assert stats['unique_processed'] == 1
     assert stats['duplicate_dropped'] == 1
 
+def test_get_events_by_topic(client):
+    """Test filtering events by specific topic"""
+    # Publish events to different topics
+    client.post('/publish', json=make_event(100, 'topic-a'))
+    client.post('/publish', json=make_event(101, 'topic-a'))
+    client.post('/publish', json=make_event(102, 'topic-b'))
+    
+    drain_queue_and_wait(client)
+    
+    # Test filter by topic-a
+    r = client.get('/events?topic=topic-a')
+    data = r.json()
+    assert len(data['events']) == 2
+    assert all(e['topic'] == 'topic-a' for e in data['events'])
+    
+    # Test filter by topic-b
+    r = client.get('/events?topic=topic-b')
+    data = r.json()
+    assert len(data['events']) == 1
+    assert data['events'][0]['topic'] == 'topic-b'
+    
 def test_get_events_and_stats_consistency(client):
     events = [make_event(i) for i in range(3, 8)]
     client.post('/publish', json=events)
