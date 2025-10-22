@@ -61,13 +61,11 @@ pytest -v
 ```
 
 ## 2. Performance Test (Skala Uji)
-```
 Untuk menguji performa sistem dengan lebih dari 5000
-
-python performance_test.py
-
-Tes ini akan mengukur kecepatan ingest dan deduplikasi data menggunakan endpoint /publish dan /stats.
 ```
+python performance_test.py
+```
+Tes ini akan mengukur kecepatan ingest dan deduplikasi data menggunakan endpoint /publish dan /stats.
 
 ---
 
@@ -101,6 +99,6 @@ Endpoint /stats digunakan untuk memantau jumlah event diterima, diproses unik, d
 ---
 
 # 👤 Author
-## Wiranto (Wira)
-### 📍 Institut Teknologi Kalimantan
-### 📧 github.com/Wiraproject
+#### Wiranto (Wira)
+#### 📍 Institut Teknologi Kalimantan
+#### 📧 github.com/Wiraproject
