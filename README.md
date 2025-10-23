@@ -4,50 +4,27 @@ Sistem Event Aggregator berbasis FastAPI dengan dukungan deduplication store (SQ
 
 ---
 
-## 🚀 Langkah Instalasi & Menjalankan Aplikasi
+## 🚀 Quick Start
 ### 1. Clone Repository
 ```
 git clone https://github.com/Wiraproject/uts-aggregator.git
 cd uts-aggregator
 ```
 
-### 2. Buat Virtual Environment
-```
-python -m venv venv
-```
-
-### 3. Install Dependencies
-```
-pip install -r requirements.txt
-```
-
-### 4. Jalankan Server Lokal
-```
-uvicorn src.main:app --reload
-
-Secara default, aplikasi akan berjalan di:
-🔗 http://127.0.0.1:8000
-```
-
-### 5. Lihat Dokumentasi API Lokal
-```
-http://127.0.0.1:8000/docs
-```
-
 ---
 
-## 🐳 Build dan Run Menggunakan Docker
-### 1. Build Image
+## 📦 Cara Build & Run
+### 1. Build semua services
 ```
-docker build -t uts-aggregator .
-```
-
-### 2. Jalankan Container
-```
-docker run -d -p 8080:8080 --name aggregator uts-aggregator
+docker-compose build
 ```
 
-### 3. Akses Dokumentasi API di Container
+### 2. Jalankan semua services
+```
+docker-compose up -d  
+```
+
+### 3. Akses Dokumentasi API 
 ```
 http://localhost:8080/docs
 ```
@@ -70,31 +47,41 @@ Tes ini akan mengukur kecepatan ingest dan deduplikasi data menggunakan endpoint
 ---
 
 ## 🧠 Asumsi Desain Sistem
-### 1. Event Aggregation
-Sistem menerima event dalam format JSON, baik tunggal maupun batch, melalui endpoint /publish.
+### 1. Deduplication Strategy
+#### Key: Composite key (topic, event_id) digunakan untuk identify unique events
+#### Storage: SQLite dengan PRIMARY KEY constraint untuk atomic duplicate detection
+#### Rationale: Simple, reliable, dan tidak memerlukan external dependencies
 
-### 2. Deduplication Logic
-Event dengan kombinasi (topic, event_id) yang sama dianggap duplikat dan tidak akan disimpan ulang.
+### 2. At-Least-Once → Exactly-Once
+#### Problem: Distributed systems sering menggunakan at-least-once delivery (event bisa dikirim berulang kali)
+#### Solution: Idempotent processing dengan deduplication store
+#### Implementation: Setiap event di-check di database sebelum processing
 
-### 3. Penyimpanan Data
-Menggunakan SQLite sebagai basis data sederhana (data.db).
-Mode WAL (Write-Ahead Logging) diaktifkan untuk performa dan concurrency yang lebih baik.
+### 3. Persistence
+#### Database: SQLite
+#### Volume: Docker volume untuk persist data across restarts
+#### Benefit: Simple deployment, no external database required
 
-### 4. Consumer
-Proses asynchronous (asyncio.Queue) yang mengkonsumsi event dari antrian dan memperbarui statistik.
+### 4. Async Processing
+#### Queue: asyncio.Queue untuk decoupling ingestion dan processing
+#### Consumer: Background task yang consume events dari queue
+#### Benefit: High throughput, non-blocking operations
 
-### 5. Statistik Real-time
-Endpoint /stats digunakan untuk memantau jumlah event diterima, diproses unik, dan duplikat yang ditolak.
+### 5. Multi-Service Architecture
+#### Separation: Publisher dan Aggregator sebagai 2 services terpisah
+#### Communication: Internal Docker network (service discovery via DNS)
+#### Rationale: Mensimulasikan microservices architecture
 
 ---
 
 ## 📡 Endpoint API
-| Metode   | Endpoint                | Deskripsi                                                                 | Contoh Response                                                                                                  |
-| :------- | :---------------------- | :------------------------------------------------------------------------ | :--------------------------------------------------------------------------------------------------------------- |
-| **POST** | `/publish`              | Menerima 1 atau banyak event untuk diproses dan dimasukkan ke dedup store | `{ "enqueued": 5, "duplicates_rejected": 0 }`                                                                    |
-| **GET**  | `/events`               | Mengambil semua event yang tersimpan                                      | `{ "events": [ { "topic": "t1", "event_id": "id-1", ... } ] }`                                                   |
-| **GET**  | `/events?topic={topic}` | Mengambil event berdasarkan topic tertentu                                | `{ "events": [ ... ] }`                                                                                          |
-| **GET**  | `/stats`                | Menampilkan statistik sistem saat ini                                     | `{ "received": 10, "unique_processed": 8, "duplicate_dropped": 2, "uptime_seconds": 25, "topics": ["t1","t2"] }` |
+
+| Method | Endpoint | Description | Request Body | Response |
+|--------|----------|-------------|--------------|----------|
+| **POST** | `/publish` | Menerima event (single atau batch) | Event JSON / Array | `{"accepted": int, "duplicates_rejected": int}` |
+| **GET** | `/events` | Mengambil semua events yang tersimpan | - | `{"events": [Event]}` |
+| **GET** | `/events?topic={topic}` | Filter events berdasarkan topic | - | `{"events": [Event]}` |
+| **GET** | `/stats` | Statistik sistem real-time | - | Stats JSON |
 
 ---
 
