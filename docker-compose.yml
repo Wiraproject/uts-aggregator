@@ -20,24 +20,24 @@ services:
       start_period: 40s
     restart: unless-stopped 
 
-  # publisher:
-  #   build:
-  #     context: ./publisher
-  #     dockerfile: Dockerfile
-  #   container_name: uts-publisher
-  #   environment:
-  #     - AGGREGATOR_URL=http://aggregator:8080 
-  #     - TOTAL_EVENTS=1000
-  #     - DUPLICATE_RATE=0.2
-  #     - BATCH_SIZE=100
-  #     - INTERVAL=10.0
-  #     - MODE=continuous 
-  #   depends_on:
-  #     aggregator:
-  #       condition: service_healthy
-  #   networks:
-  #     - event-network
-  #   restart: unless-stopped
+  publisher:
+    build:
+      context: ./publisher
+      dockerfile: Dockerfile
+    container_name: uts-publisher
+    environment:
+      - AGGREGATOR_URL=http://aggregator:8080 
+      - TOTAL_EVENTS=1000
+      - DUPLICATE_RATE=0.2
+      - BATCH_SIZE=100
+      - INTERVAL=10.0
+      - MODE=continuous 
+    depends_on:
+      aggregator:
+        condition: service_healthy
+    networks:
+      - event-network
+    restart: unless-stopped
 
 networks:
   event-network:
