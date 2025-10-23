@@ -6,12 +6,14 @@ import asyncio
 import pytest
 from fastapi.testclient import TestClient
 
+current_dir = os.path.dirname(os.path.abspath(__file__))
+aggregator_dir = os.path.join(current_dir, '..', 'aggregator')
+sys.path.insert(0, aggregator_dir)
+
 tmp_db = os.path.join(tempfile.gettempdir(), "testdata.db")
 if os.path.exists(tmp_db):
     os.remove(tmp_db)
 os.environ["DEDUP_DB"] = tmp_db
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src import main as appmod
 from src.dedup_store import DedupStore
