@@ -60,7 +60,7 @@ http://localhost:8080/docs
 pytest -v
 ```
 
-## 2. Performance Test (Skala Uji)
+### 2. Performance Test (Skala Uji)
 Untuk menguji performa sistem dengan lebih dari 5000
 ```
 python performance_test.py
